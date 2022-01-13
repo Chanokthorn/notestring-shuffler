@@ -3,12 +3,13 @@ package app
 import (
 	"fmt"
 	"math/rand"
-	"time"
 	"os"
+	"time"
 )
 
 var (
-	notes      = []string{"A", "E", "D", "G"}
+	// notes      = []string{"A", "E", "D", "G", "B"}
+	notes      = []string{"A"}
 	stringNums = []int{1, 2, 3, 4, 5, 6}
 )
 
@@ -28,9 +29,9 @@ func (c Card) GetName() string {
 type App struct {
 	wrongCards map[string]int
 	cards      Cards
-	input chan string
-	output chan Card
-	close chan bool
+	input      chan string
+	output     chan Card
+	close      chan bool
 }
 
 func NewCards() Cards {
@@ -124,4 +125,8 @@ func (a *App) End() {
 	close(a.input)
 	close(a.output)
 	close(a.close)
+}
+
+func (a *App) GetDeck() Cards {
+	return a.cards
 }

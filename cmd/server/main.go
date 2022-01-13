@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 var h Handler
@@ -20,9 +21,26 @@ func main() {
 	}
 
 	e := echo.New()
+	// e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+	// 	AllowOrigins: []string{"http://127.0.0.1:3000", "http://127.0.0.1:3000/", "http://localhost:3000", "http://localhost:3000/"},
+	// 	AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAccessControlAllowHeaders},
+	// 	AllowMethods: []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE, echo.OPTIONS},
+	// }))
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins:     []string{"http://127.0.0.1:3000", "http://127.0.0.1:3000/", "http://localhost:3000", "<http://localhost:3000>", "http://localhost:3000/"},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowMethods:     []string{echo.GET, echo.HEAD, echo.PUT, echo.PATCH, echo.POST, echo.DELETE, echo.OPTIONS},
+		AllowCredentials: true,
+	}))
+
+	e.Use(middleware.Logger())
+
+	// e.Use(middleware.CORSWithConfig(middleware.DefaultCORSConfig))
+
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
 	})
+	e.GET("/deck", getDeck)
 	e.POST("/start", startGame)
 	e.POST("/correct", correct)
 	e.POST("/wrong", wrong)
@@ -37,11 +55,11 @@ func main() {
 }
 
 type Session struct {
-	Name string
-	App app.App
-	Input chan string
+	Name   string
+	App    app.App
+	Input  chan string
 	Output chan app.Card
-	Close chan bool
+	Close  chan bool
 }
 
 type Handler struct {
@@ -63,16 +81,17 @@ func startGame(c echo.Context) error {
 	newApp := app.NewApp()
 	input, output, close := newApp.Run(true)
 	h.sessionMap[session] = Session{
-		Name: session,
-		App: newApp,
-		Input: input,
+		Name:   session,
+		App:    newApp,
+		Input:  input,
 		Output: output,
-		Close: close,
+		Close:  close,
 	}
 
-	card := <- output
+	card := <-output
+	fmt.Println(card)
 
-	return c.JSON(http.StatusOK, &card)
+	return c.JSON(http.StatusOK, newApp.GetDeck())
 }
 
 func getSession(c echo.Context) (Session, error) {
@@ -95,7 +114,7 @@ func correct(c echo.Context) error {
 	}
 
 	session.Input <- "t"
-	card := <- session.Output
+	card := <-session.Output
 
 	return c.JSON(http.StatusOK, &card)
 }
@@ -107,7 +126,7 @@ func wrong(c echo.Context) error {
 	}
 
 	session.Input <- "f"
-	card := <- session.Output
+	card := <-session.Output
 
 	return c.JSON(http.StatusOK, &card)
 }
@@ -120,8 +139,17 @@ func end(c echo.Context) error {
 
 	session.Input <- "e"
 	wrongCards := h.sessionMap[session.Name].App.GetWrongCards()
-	
+
 	delete(h.sessionMap, session.Name)
-	
+
 	return c.JSON(http.StatusOK, wrongCards)
+}
+
+func getDeck(c echo.Context) error {
+	session, err := getSession(c)
+	if err != nil {
+		return c.String(http.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, session.App.GetDeck())
 }
